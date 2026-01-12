@@ -8,9 +8,9 @@ services:
     restart: unless-stopped
     working_dir: /var/www/laravel
     environment:
-      XDEBUG_MODE: ${XDEBUG_MODE:-off}
-      XDEBUG_START: ${XDEBUG_START:-no}
-      XDEBUG_CLIENT_HOST: ${XDEBUG_CLIENT_HOST:-host.docker.internal}
+      XDEBUG_MODE: ${XDEBUG_MODE}
+      XDEBUG_START: ${XDEBUG_START}
+      XDEBUG_CLIENT_HOST: ${XDEBUG_CLIENT_HOST}
     volumes:
       - .:/var/www/laravel
       - ./docker/php/php.ini:/usr/local/etc/php/conf.d/local.ini:ro
@@ -51,9 +51,9 @@ services:
     container_name: laravel-postgres-nginx-tcp
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${DB_DATABASE:-laravel}
-      POSTGRES_USER: ${DB_USERNAME:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-root}
+      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
@@ -73,8 +73,8 @@ services:
     container_name: laravel-pgadmin-nginx-tcp
     restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
       # Отключаем логин-экран для локальной разработки (по желанию)
       # PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
     ports:
