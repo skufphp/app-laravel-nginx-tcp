@@ -1,6 +1,6 @@
 # Инструкция по установке Laravel Boilerplate
 
-Этот boilerplate предназначен для быстрого развертывания Laravel-проекта с архитектурой **PHP-FPM + Nginx (TCP) + PostgreSQL + pgAdmin**.
+Этот boilerplate предназначен для быстрого развертывания Laravel-проекта с архитектурой **PHP-FPM + Nginx (TCP) + PostgreSQL + Redis + Node.js**.
 
 ## Для каких приложений подходит эта архитектура
 
@@ -53,13 +53,19 @@ composer create-project laravel/laravel .
 ### 2. Копирование файлов boilerplate
 Скопируйте следующие файлы и папки из данного boilerplate в корень вашего нового проекта Laravel:
 * Папку `docker/` (включая все подпапки и файлы)
-* Файл `docker-compose.yml`
+* Файлы `docker-compose.yml`, `docker-compose.dev.yml`, `docker-compose.prod.yml`
 * Файл `Makefile`
 
 ### 3. Настройка окружения (.env)
 Откройте созданный файл `.env` в корне Laravel и добавьте в его конец следующую секцию из файла `.env.docker`:
 
 ```dotenv
+# --- Docker Ports (Dev only) ---
+NGINX_PORT=80
+PGADMIN_PORT=8080
+DB_FORWARD_PORT=5432
+REDIS_FORWARD_PORT=6379
+
 # --- Database Connection ---
 # Важно! В основной секции .env замените DB_HOST=127.0.0.1
 # на имя сервиса БД из вашего docker-compose.yml (по умолчанию: laravel-postgres-nginx-tcp)
