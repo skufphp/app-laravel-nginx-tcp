@@ -1,0 +1,70 @@
+services:
+  laravel-php-nginx-tcp:
+    volumes:
+      - .:/var/www/laravel
+
+  laravel-nginx-tcp:
+    ports:
+      - "${NGINX_PORT}:80"
+    volumes:
+      - .:/var/www/laravel
+      - ./docker/nginx/conf.d/laravel.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - laravel-node-nginx-tcp
+
+  laravel-node-nginx-tcp:
+    image: node:24-alpine
+    container_name: laravel-node-nginx-tcp
+    working_dir: /var/www/laravel
+    volumes:
+      - .:/var/www/laravel
+      - node_modules:/var/www/laravel/node_modules
+    command: >
+      sh -lc '
+        if [ -f package-lock.json ]; then
+          npm ci;
+        else
+          npm install;
+        fi;
+      
+        npm run dev -- --host 0.0.0.0 --port 5173
+      '
+    ports:
+      - "5173:5173"
+    networks:
+      - laravel-nginx-tcp-network
+
+  # Dev-only: проброс Postgres наружу (если нужен доступ с хоста)
+  laravel-postgres-nginx-tcp:
+    ports:
+      - "${DB_FORWARD_PORT}:5432"
+
+  # Dev-only: проброс Redis наружу (если нужен доступ с хоста)
+  laravel-redis-nginx-tcp:
+    ports:
+      - "${REDIS_FORWARD_PORT}:6379"
+
+  # Dev-only: pgAdmin
+  laravel-pgadmin-nginx-tcp:
+    image: dpage/pgadmin4:latest
+    container_name: laravel-pgadmin-nginx-tcp
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    ports:
+      - "${PGADMIN_PORT}:80"
+    networks:
+      - laravel-nginx-tcp-network
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "-O", "-", "http://localhost/" ]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      laravel-postgres-nginx-tcp:
+        condition: service_healthy
+
+volumes:
+  node_modules:

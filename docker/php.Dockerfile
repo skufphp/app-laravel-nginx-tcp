@@ -1,60 +1,90 @@
 # ==============================================================================
-# PHP-FPM Custom Image (TCP)
+# Multi-stage PHP-FPM Image (Unix Socket) — PHP 8.5 Alpine (Laravel)
 # ==============================================================================
-FROM php:8.4-fpm-alpine
+FROM node:24-alpine AS frontend-build
+WORKDIR /app
 
-# 1. Системные зависимости
-# Мы объединяем установку инструментов сборки ($PHPIZE_DEPS) и библиотек,
-# которые нужны для работы PHP-расширений.
-RUN apk add --no-cache \
-    curl \
-    $PHPIZE_DEPS \
-    libpng-dev \
-    libjpeg-turbo-dev \
-    freetype-dev \
-    libxml2-dev \
-    zip \
-    unzip \
-    git \
-    oniguruma-dev \
-    libzip-dev \
-    linux-headers \
-    fcgi \
-    postgresql-dev \
-    icu-dev
+# Ставим зависимости фронта отдельно для лучшего кеширования
+COPY ../package*.json ./
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
-# 2. Node.js и NPM
-# Устанавливаем их отдельным слоем. Это удобно, если тебе вдруг понадобится
-# изменить версию ноды, не пересобирая расширения PHP.
-RUN apk add --no-cache nodejs npm
+# Копируем проект и собираем ассеты
+COPY ../ ./
+RUN npm run build
 
-# 3. Компиляция PHP расширений и очистка
-# Здесь мы устанавливаем Xdebug через PECL и встроенные расширения Laravel.
-# В конце удаляем инструменты сборки ($PHPIZE_DEPS), чтобы образ весил меньше.
-RUN pecl channel-update pecl.php.net \
-    && pecl install xdebug \
-    && docker-php-ext-enable xdebug \
-    && docker-php-ext-install \
-        pdo \
-        pdo_pgsql \
-        pgsql \
-        mbstring \
-        xml \
-        gd \
-        bcmath \
-        zip \
-        intl \
-        opcache \
-    && apk del $PHPIZE_DEPS
 
-# Устанавливаем Composer
+# ==============================================================================
+# PHP base runtime (no node) — used for dev target and as base for production
+# ==============================================================================
+FROM php:8.5-fpm-alpine AS php-base
+
+# 1) Runtime deps + Build deps (build deps удалим после сборки)
+RUN set -eux; \
+    apk add --no-cache \
+      curl git zip unzip fcgi \
+      icu-libs libzip libpng libjpeg-turbo freetype postgresql-libs libxml2 oniguruma \
+    && apk add --no-cache --virtual .build-deps \
+      $PHPIZE_DEPS linux-headers \
+      icu-dev libzip-dev libpng-dev libjpeg-turbo-dev freetype-dev \
+      postgresql-dev libxml2-dev oniguruma-dev
+
+# 2) PHP extensions
+RUN set -eux; \
+    docker-php-ext-configure gd --with-freetype --with-jpeg; \
+    docker-php-ext-install -j"$(nproc)" \
+      pdo \
+      pdo_pgsql \
+      pgsql \
+      mbstring \
+      xml \
+      gd \
+      bcmath \
+      zip \
+      intl
+
+# 3) PIE (PHP Installer for Extensions) + Xdebug (dev only)
+COPY --from=ghcr.io/php/pie:bin /pie /usr/bin/pie
+
+ARG INSTALL_XDEBUG=false
+RUN set -eux; \
+    if [ "${INSTALL_XDEBUG}" = "true" ]; then \
+      pie install xdebug/xdebug; \
+      docker-php-ext-enable xdebug; \
+    fi
+
+# 4) Cleanup
+RUN set -eux; \
+    apk del .build-deps; \
+    rm -rf /tmp/pear ~/.pearrc /var/cache/apk/*
+
+# 5) PHP-FPM config (unix socket) + php.ini
+RUN rm -f \
+      /usr/local/etc/php-fpm.d/www.conf.default \
+      /usr/local/etc/php-fpm.d/zz-docker.conf \
+      /usr/local/etc/php-fpm.d/www.conf
+
+COPY ./php/www.conf /usr/local/etc/php-fpm.d/www.conf
+COPY ./php/php.ini /usr/local/etc/php/conf.d/local.ini
+
+RUN mkdir -p /var/run/php && chown -R www-data:www-data /var/run/php
+
+# 6) Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Устанавливаем рабочую директорию и гарантируем правильные права
 WORKDIR /var/www/laravel
 RUN chown -R www-data:www-data /var/www/laravel
 
-# Открываем порт PHP-FPM
+# 7) Open PHP-FPM port
 EXPOSE 9000
 
 CMD ["php-fpm", "-F"]
+
+
+# ==============================================================================
+# Production target: code + built assets baked in (immutable)
+# ==============================================================================
+FROM php-base AS production
+WORKDIR /var/www/laravel
+
+COPY ../ ./
+COPY --from=frontend-build /app/public/build /var/www/laravel/public/build
