@@ -194,7 +194,7 @@ info: ## Показать информацию о проекте
 	@echo "  • 5432 - PostgreSQL (dev forwarded)"
 	@echo "  • 6379 - Redis (dev forwarded)"
 	@echo "  • 8080 - pgAdmin (dev only)"
-	@echo "  • UTCP 9000 - Связь PHP-FPM <-> Nginx"
+	@echo "  • TCP:9000 - Связь PHP-FPM <-> Nginx"
 
 validate: ## Проверить доступность сервисов по HTTP
 	@echo "$(YELLOW)Проверка работы сервисов...$(NC)"
